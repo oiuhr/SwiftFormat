@@ -1365,6 +1365,27 @@ extension Formatter {
             }
         }
 
+        var selfKind: String {
+            switch self {
+            case .type:
+                return "type"
+            case .declaration:
+                return "declaration"
+            case .conditionalCompilation:
+                return "conditionalCompilation"
+            }
+        }
+
+        var kind: String? {
+            switch self {
+            case let .type(kind, _, _, _):
+                return kind
+            case let .declaration(kind, _):
+                return kind
+            default: return nil
+            }
+        }
+
         /// The opening tokens of the declaration (before the body)
         var openTokens: [Token] {
             switch self {

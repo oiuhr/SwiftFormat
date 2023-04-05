@@ -17,6 +17,18 @@ class OrganizationTests: RulesTests {
         class Foo {
             private func privateMethod() {}
 
+            private func privateMethod2() {}
+
+            internal func internalMethod() {
+                /// some shit
+            }
+
+            @Published
+            var state: State
+
+            @Published
+            private var _state: State
+
             private let bar = 1
             public let baz = 1
             open var quack = 2
@@ -32,48 +44,50 @@ class OrganizationTests: RulesTests {
 
             init() {}
 
+            /*
+             * Block comment
+             */
+
+            /// Deinit
+            deinit() {
+
+            }
+
+            public var computed: String {
+                get {
+                    _computed
+                }
+                set {
+                    _computed = newValue
+                }
+            }
+
+            internal var _computed: String = "" {
+                willSet {
+                    internalMethod()
+                }
+            }
+
             /// Doc comment
             public func publicMethod() {}
+
+            typealias State = Enum
+
+            enum State {
+                func stuff() -> Stuff {
+                    // stuff
+                }
+
+                typealias Stuff = String
+
+                case loading
+                case a
+                case content
+            }
         }
         """
 
         let output = """
-        class Foo {
-
-            // MARK: Lifecycle
-
-            /*
-             * Block comment
-             */
-
-            init() {}
-
-            // MARK: Open
-
-            open var quack = 2
-
-            // MARK: Public
-
-            public let baz = 1
-
-            /// Doc comment
-            public func publicMethod() {}
-
-            // MARK: Internal
-
-            var quux = 2
-
-            /// `open` is the only visibility keyword that
-            /// can also be used as an identifier.
-            var open = 10
-
-            // MARK: Private
-
-            private let bar = 1
-
-            private func privateMethod() {}
-
-        }
         """
 
         testFormatting(

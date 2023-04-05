@@ -1563,7 +1563,7 @@ extension Formatter {
     }
 
     /// Types of declarations that can be present within an individual category
-    enum DeclarationType {
+    enum DeclarationType: String, CaseIterable {
         case nestedType
         case staticProperty
         case staticPropertyWithBody
@@ -1573,6 +1573,14 @@ extension Formatter {
         case staticMethod
         case classMethod
         case instanceMethod
+
+        /// The comment tokens that should precede all declarations in this category
+        func markComment(from template: String) -> String? {
+            switch self {
+            default:
+                return "// \(template.replacingOccurrences(of: "%c", with: rawValue.capitalized))"
+            }
+        }
     }
 
     static let categoryOrdering: [Category] = [
@@ -1931,15 +1939,6 @@ extension Formatter {
                     let (lhsOriginalIndex, lhs) = lhs
                     let (rhsOriginalIndex, rhs) = rhs
 
-                    // Sort primarily by category
-                    if sortByCategory,
-                       let lhsCategorySortOrder = Formatter.categoryOrdering.firstIndex(of: lhs.category),
-                       let rhsCategorySortOrder = Formatter.categoryOrdering.firstIndex(of: rhs.category),
-                       lhsCategorySortOrder != rhsCategorySortOrder
-                    {
-                        return lhsCategorySortOrder < rhsCategorySortOrder
-                    }
-
                     // Within individual categories (excluding .beforeMarks), sort by the declaration type
                     if sortByType,
                        lhs.category != .beforeMarks,
@@ -1951,6 +1950,15 @@ extension Formatter {
                        lhsTypeSortOrder != rhsTypeSortOrder
                     {
                         return lhsTypeSortOrder < rhsTypeSortOrder
+                    }
+
+                    // Sort primarily by category
+                    if sortByCategory,
+                       let lhsCategorySortOrder = Formatter.categoryOrdering.firstIndex(of: lhs.category),
+                       let rhsCategorySortOrder = Formatter.categoryOrdering.firstIndex(of: rhs.category),
+                       lhsCategorySortOrder != rhsCategorySortOrder
+                    {
+                        return lhsCategorySortOrder < rhsCategorySortOrder
                     }
 
                     // If this type had a :sort directive, we sort alphabetically
@@ -2048,6 +2056,37 @@ extension Formatter {
         let numberOfCategories = Formatter.categoryOrdering.filter { category in
             sortedDeclarations.contains(where: { $0.category == category })
         }.count
+
+        for declarationType in Formatter.categorySubordering {
+            guard let indexOfFirstType = sortedDeclarations
+                .firstIndex(where: { $0.type == declarationType })
+            else { continue }
+
+            // Build the MARK declaration, but only when there is more than one category present.
+            if options.markCategories,
+               numberOfCategories > 1,
+               let markComment = declarationType.markComment(from: options.categoryMarkComment)
+            {
+                let firstDeclaration = sortedDeclarations[indexOfFirstType].declaration
+                let declarationParser = Formatter(firstDeclaration.tokens)
+                let indentation = declarationParser.indentForLine(at: 0)
+
+                let endMarkDeclaration = options.lineAfterMarks ? "\n\n" : "\n"
+                let markDeclaration = tokenize("\(indentation)\(markComment)\(endMarkDeclaration)")
+
+                sortedDeclarations.insert(
+                    (.declaration(kind: "comment", tokens: markDeclaration), .beforeMarks, declarationType),
+                    at: indexOfFirstType
+                )
+
+                // If this declaration is the first declaration in the type scope,
+                // make sure the type's opening sequence of tokens ends with
+                // at least one blank line so the category separator appears balanced
+                if indexOfFirstType == 0 {
+                    typeOpeningTokens = endingWithBlankLine(typeOpeningTokens)
+                }
+            }
+        }
 
         for category in Formatter.categoryOrdering {
             guard let indexOfFirstDeclaration = sortedDeclarations
